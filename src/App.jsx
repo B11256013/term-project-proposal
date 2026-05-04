@@ -281,7 +281,7 @@ export default function App() {
       <main className="flex-1 ml-20 lg:ml-64 p-6 lg:p-10 h-screen overflow-y-auto">
         <header className="mb-8 flex justify-between items-end">
           <div>
-            <h2 className="text-3xl font-extrabold text-gray-900">{activeTab === 'dashboard' ? '有機作業登錄看板' : '數位生產履歷庫'}</h2>
+            <h2 className="text-3xl font-extrabold text-gray-900">{activeTab === 'dashboard' ? '即時營運看板' : '數位生產履歷庫'}</h2>
             <p className="text-gray-500 mt-1">依據有機生產工作紀錄簿格式建置</p>
           </div>
           <div className="hidden md:flex items-center gap-4 bg-white px-4 py-2 rounded-full shadow-sm border border-gray-200">
