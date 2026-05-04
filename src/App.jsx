@@ -45,12 +45,37 @@ export default function App() {
   const [newPassword, setNewPassword] = useState('');
   const [activeTab, setActiveTab] = useState('dashboard');
 
-  // --- 💡 新增：自訂快捷任務狀態 ---
-  const [quickTasks, setQuickTasks] = useState([
-    { id: 1, name: '🌞 溫室A棟早晨澆水', icon: <Droplets size={16}/>, data: { taskType: '灌溉', field: '溫室A棟', crop: '玉女小番茄', material: '自動滴灌系統', amount: '50L', note: '系統預設早晨澆水任務' } },
-    { id: 2, name: '🛡️ B區預防性病蟲害巡視', icon: <Bug size={16}/>, data: { taskType: '病蟲害防治', field: '金鑽鳳梨B區', crop: '金鑽鳳梨', material: '無 (日常巡視)', amount: '-', note: '例行性巡視，無異常發現' } },
-    { id: 3, name: '🧹 包裝場下班清潔', icon: <ClipboardCheck size={16}/>, data: { taskType: '場地清潔', field: '農場包裝場', crop: '-', material: '清水與掃具', amount: '-', note: '下班前場地清理與設備歸位' } }
-  ]);
+  // --- 💡 新增：圖示對照表與快捷任務狀態 ---
+  const iconMap = {
+    'droplets': <Droplets size={16}/>,
+    'bug': <Bug size={16}/>,
+    'clipboard': <ClipboardCheck size={16}/>,
+    'tractor': <Tractor size={16}/>,
+    'leaf': <Leaf size={16}/>,
+    'sprout': <Sprout size={16}/>
+  };
+
+  const defaultQuickTasks = [
+    { id: 1, name: '🌞 溫室A棟早晨澆水', iconName: 'droplets', data: { taskType: '灌溉', field: '溫室A棟', crop: '玉女小番茄', material: '自動滴灌系統', amount: '50L', note: '系統預設早晨澆水任務' } },
+    { id: 2, name: '🛡️ B區預防性病蟲害巡視', iconName: 'bug', data: { taskType: '病蟲害防治', field: '金鑽鳳梨B區', crop: '金鑽鳳梨', material: '無 (日常巡視)', amount: '-', note: '例行性巡視，無異常發現' } },
+    { id: 3, name: '🧹 包裝場下班清潔', iconName: 'clipboard', data: { taskType: '場地清潔', field: '農場包裝場', crop: '-', material: '清水與掃具', amount: '-', note: '下班前場地清理與設備歸位' } }
+  ];
+
+  // 使用 localStorage 讓自訂按鈕重新整理後不會消失
+  const [quickTasks, setQuickTasks] = useState(() => {
+    const saved = localStorage.getItem('farm_quick_tasks');
+    return saved ? JSON.parse(saved) : defaultQuickTasks;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('farm_quick_tasks', JSON.stringify(quickTasks));
+  }, [quickTasks]);
+
+  // 控制新增快捷任務 Modal 的狀態
+  const [showQuickTaskModal, setShowQuickTaskModal] = useState(false);
+  const [quickTaskForm, setQuickTaskForm] = useState({
+    name: '', iconName: 'leaf', taskType: '灌溉', field: '', crop: '', material: '', amount: '', note: ''
+  });
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -115,7 +140,7 @@ export default function App() {
     setLoading(false);
   };
 
-  // --- 💡 執行快捷任務功能 ---
+  // --- 💡 執行與管理快捷任務功能 ---
   const handleQuickTask = async (taskData) => {
     if(!window.confirm(`確定要直接寫入「${taskData.name}」的紀錄嗎？`)) return;
     setLoading(true);
@@ -128,6 +153,36 @@ export default function App() {
       alert('✅ 快捷任務已成功記錄至數位履歷！');
     } catch (err) { alert('操作失敗：' + err.message); }
     setLoading(false);
+  };
+
+  // 儲存新的自訂快捷任務
+  const handleSaveNewQuickTask = (e) => {
+    e.preventDefault();
+    if(!quickTaskForm.name) return alert('請輸入快捷任務名稱！');
+    const newTask = {
+      id: Date.now(),
+      name: quickTaskForm.name,
+      iconName: quickTaskForm.iconName,
+      data: {
+        taskType: quickTaskForm.taskType,
+        field: quickTaskForm.field,
+        crop: quickTaskForm.crop,
+        material: quickTaskForm.material,
+        amount: quickTaskForm.amount,
+        note: quickTaskForm.note
+      }
+    };
+    setQuickTasks([...quickTasks, newTask]);
+    setShowQuickTaskModal(false);
+    setQuickTaskForm({ name: '', iconName: 'leaf', taskType: '灌溉', field: '', crop: '', material: '', amount: '', note: '' });
+  };
+
+  // 刪除自訂快捷任務
+  const handleDeleteQuickTask = (id, e) => {
+    e.stopPropagation(); // 避免觸發執行任務
+    if(window.confirm('確定要刪除這個自訂快捷任務嗎？')) {
+      setQuickTasks(quickTasks.filter(t => t.id !== id));
+    }
   };
 
   const handleEdit = (log) => {
@@ -264,15 +319,23 @@ export default function App() {
               </h3>
               <div className="flex flex-wrap gap-3">
                 {quickTasks.map(task => (
-                  <button 
-                    key={task.id} 
-                    onClick={() => handleQuickTask(task)}
-                    className="flex items-center gap-2 px-4 py-3 bg-gray-50 hover:bg-green-50 border border-gray-200 hover:border-green-300 text-gray-700 hover:text-green-700 rounded-xl transition-all shadow-sm transform hover:-translate-y-1"
-                  >
-                    {task.icon} <span className="font-bold text-sm">{task.name}</span>
-                  </button>
+                  <div key={task.id} className="relative group inline-block">
+                    <button 
+                      onClick={() => handleQuickTask(task)}
+                      className="flex items-center gap-2 px-4 py-3 bg-gray-50 hover:bg-green-50 border border-gray-200 hover:border-green-300 text-gray-700 hover:text-green-700 rounded-xl transition-all shadow-sm transform hover:-translate-y-1"
+                    >
+                      {iconMap[task.iconName] || <Leaf size={16}/>} <span className="font-bold text-sm">{task.name}</span>
+                    </button>
+                    <button 
+                      onClick={(e) => handleDeleteQuickTask(task.id, e)} 
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+                      title="刪除此任務"
+                    >
+                      <X size={12}/>
+                    </button>
+                  </div>
                 ))}
-                <button className="flex items-center gap-2 px-4 py-3 bg-white border border-dashed border-gray-300 text-gray-400 hover:text-gray-600 rounded-xl transition-all">
+                <button onClick={() => setShowQuickTaskModal(true)} className="flex items-center gap-2 px-4 py-3 bg-white border border-dashed border-gray-300 text-gray-400 hover:text-gray-600 rounded-xl transition-all">
                   <Plus size={16} /> <span className="text-sm">新增自訂任務</span>
                 </button>
               </div>
@@ -411,6 +474,84 @@ export default function App() {
                 value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
               />
               <button className="w-full bg-gray-900 text-white p-3 rounded-xl font-bold hover:bg-black transition-all">更新密碼</button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- 💡 新增自訂任務 Modal --- */}
+      {showQuickTaskModal && (
+        <div className="fixed inset-0 bg-gray-900/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-xl shadow-2xl relative border border-gray-100 animate-fade-in-up my-8">
+            <button onClick={() => setShowQuickTaskModal(false)} className="absolute top-5 right-5 text-gray-400 hover:text-gray-700 bg-gray-100 p-2 rounded-full transition-colors"><X size={20} /></button>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="bg-yellow-100 w-12 h-12 rounded-xl flex items-center justify-center">
+                <Zap className="text-yellow-600" size={24}/>
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-gray-800">設計專屬快捷任務</h2>
+                <p className="text-gray-500 text-sm">打包常用農事操作，未來只需一鍵打卡</p>
+              </div>
+            </div>
+            
+            <form onSubmit={handleSaveNewQuickTask} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-600 mb-1">自訂任務名稱 <span className="text-red-500">*</span></label>
+                  <input type="text" required placeholder="例如：溫室A棟早晨澆水" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-green-500/50" value={quickTaskForm.name} onChange={(e)=>setQuickTaskForm({...quickTaskForm, name: e.target.value})} />
+                </div>
+                <div className="col-span-2 md:col-span-1">
+                  <label className="block text-sm font-medium text-gray-600 mb-1">選擇圖示</label>
+                  <select className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-green-500/50" value={quickTaskForm.iconName} onChange={(e)=>setQuickTaskForm({...quickTaskForm, iconName: e.target.value})}>
+                    <option value="droplets">💧 水滴 (灌溉)</option>
+                    <option value="leaf">🍃 葉子 (採收/管理)</option>
+                    <option value="bug">🐛 蟲子 (病蟲害)</option>
+                    <option value="tractor">🚜 牽引機 (通用)</option>
+                    <option value="sprout">🌱 幼苗 (播種/施肥)</option>
+                    <option value="clipboard">📋 夾紙板 (清潔)</option>
+                  </select>
+                </div>
+                <div className="col-span-2 md:col-span-1">
+                  <label className="block text-sm font-medium text-gray-600 mb-1">預設作業內容 <span className="text-red-500">*</span></label>
+                  <select className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-green-500/50" value={quickTaskForm.taskType} onChange={(e)=>setQuickTaskForm({...quickTaskForm, taskType: e.target.value})}>
+                    <optgroup label="栽培與水土管理"><option value="整地">整地</option><option value="播種/定植">播種 / 定植 / 補植</option><option value="中耕培土">中耕培土</option><option value="灌溉">灌溉</option></optgroup>
+                    <optgroup label="肥培與病蟲草害"><option value="施基肥">施基肥</option><option value="施追肥">施追肥 / 液肥</option><option value="病蟲害防治">病蟲害防治</option><option value="雜草防除">雜草防除 (除草)</option></optgroup>
+                    <optgroup label="植株管理與採收"><option value="整枝/修剪">整枝 / 蔓 / 修剪</option><option value="疏花果/套袋">疏花果 / 套袋</option><option value="採收">採收</option><option value="採後處理">採後處理 (選別/分級)</option></optgroup>
+                    <optgroup label="場地與設備維護"><option value="場地清潔">場地清潔 (包裝場/倉庫)</option><option value="設備檢修">設備檢修 / 保養</option><option value="其他">其他</option></optgroup>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">預設田區</label>
+                  <input type="text" list="history-fields" placeholder="例：A區" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-green-500/50" value={quickTaskForm.field} onChange={(e)=>setQuickTaskForm({...quickTaskForm, field: e.target.value})} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">預設作物</label>
+                  <input type="text" list="history-crops" placeholder="例：番茄" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-green-500/50" value={quickTaskForm.crop} onChange={(e)=>setQuickTaskForm({...quickTaskForm, crop: e.target.value})} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">預設資材</label>
+                  <input type="text" list="history-materials" placeholder="例：自製液肥" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-green-500/50" value={quickTaskForm.material} onChange={(e)=>setQuickTaskForm({...quickTaskForm, material: e.target.value})} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">預設數量</label>
+                  <input type="text" placeholder="例：50L" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-green-500/50" value={quickTaskForm.amount} onChange={(e)=>setQuickTaskForm({...quickTaskForm, amount: e.target.value})} />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">預設備註</label>
+                <input type="text" placeholder="例：例行性巡視" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-green-500/50" value={quickTaskForm.note} onChange={(e)=>setQuickTaskForm({...quickTaskForm, note: e.target.value})} />
+              </div>
+
+              <button type="submit" className="w-full mt-4 bg-yellow-500 text-white p-3 rounded-xl font-bold hover:bg-yellow-600 transition-all shadow-lg flex items-center justify-center gap-2">
+                <Save size={18} /> 將此打卡按鈕釘選到首頁
+              </button>
             </form>
           </div>
         </div>
