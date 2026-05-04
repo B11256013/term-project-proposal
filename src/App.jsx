@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, updateDoc, setDoc, getDoc } from 'firebase/firestore';
-import { Tractor, Leaf, Droplets, Bug, Sprout, LogOut, Trash2, Edit2, Settings, Plus, X, Save, Thermometer, CloudRain, Activity, LayoutDashboard, History, ClipboardCheck, Zap } from 'lucide-react';
+import { Tractor, Leaf, Droplets, Bug, Sprout, LogOut, Trash2, Edit2, Settings, Plus, X, Save, Thermometer, CloudRain, Activity, LayoutDashboard, History, ClipboardCheck, Zap, Search, Calendar } from 'lucide-react';
 
-// --- 1. 請在此貼上你專屬的 Firebase Config ---
+// --- 1. Firebase Config ---
 const firebaseConfig = {
   apiKey: "AIzaSyB57fZXAX31e9ROg-j8tq36qQkWZhMfx4Q",
   authDomain: "smart-farm-2c3ef.firebaseapp.com",
@@ -29,7 +29,10 @@ export default function App() {
   
   const [logs, setLogs] = useState([]);
   
-  // 表單初始狀態獨立出來，方便重複使用
+  // --- 💡 新增：履歷查詢用的狀態 ---
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterMonth, setFilterMonth] = useState('');
+
   const initialFormState = { 
     date: new Date().toISOString().split('T')[0], 
     taskType: '灌溉', 
@@ -45,7 +48,6 @@ export default function App() {
   const [newPassword, setNewPassword] = useState('');
   const [activeTab, setActiveTab] = useState('dashboard');
 
-  // --- 💡 新增：圖示對照表與快捷任務狀態 ---
   const iconMap = {
     'droplets': <Droplets size={16}/>,
     'bug': <Bug size={16}/>,
@@ -61,7 +63,6 @@ export default function App() {
     { id: 3, name: '🧹 包裝場下班清潔', iconName: 'clipboard', data: { taskType: '場地清潔', field: '農場包裝場', crop: '-', material: '清水與掃具', amount: '-', note: '下班前場地清理與設備歸位' } }
   ];
 
-  // 使用 localStorage 讓自訂按鈕重新整理後不會消失
   const [quickTasks, setQuickTasks] = useState(() => {
     const saved = localStorage.getItem('farm_quick_tasks');
     return saved ? JSON.parse(saved) : defaultQuickTasks;
@@ -71,7 +72,6 @@ export default function App() {
     localStorage.setItem('farm_quick_tasks', JSON.stringify(quickTasks));
   }, [quickTasks]);
 
-  // 控制新增快捷任務 Modal 的狀態
   const [showQuickTaskModal, setShowQuickTaskModal] = useState(false);
   const [quickTaskForm, setQuickTaskForm] = useState({
     name: '', iconName: 'leaf', taskType: '灌溉', field: '', crop: '', material: '', amount: '', note: ''
@@ -97,6 +97,17 @@ export default function App() {
       fetchSettings().then(() => setLoading(false));
     }
   }, [isLoggedIn]);
+
+  // --- 💡 新增：過濾邏輯 ---
+  const filteredLogs = logs.filter(log => {
+    const matchSearch = searchTerm === '' || 
+      (log.crop || '').includes(searchTerm) ||
+      (log.field || log.area || '').includes(searchTerm) ||
+      (log.taskType || log.type || '').includes(searchTerm) ||
+      (log.note || '').includes(searchTerm);
+    const matchMonth = filterMonth === '' || log.date.startsWith(filterMonth);
+    return matchSearch && matchMonth;
+  });
 
   const handleLogin = (e) => {
     e.preventDefault();
@@ -140,13 +151,12 @@ export default function App() {
     setLoading(false);
   };
 
-  // --- 💡 執行與管理快捷任務功能 ---
   const handleQuickTask = async (taskData) => {
     if(!window.confirm(`確定要直接寫入「${taskData.name}」的紀錄嗎？`)) return;
     setLoading(true);
     try {
       const logData = {
-        date: new Date().toISOString().split('T')[0], // 永遠帶入當天日期
+        date: new Date().toISOString().split('T')[0],
         ...taskData.data
       };
       await addDoc(collection(db, 'farm_logs'), logData);
@@ -155,7 +165,6 @@ export default function App() {
     setLoading(false);
   };
 
-  // 儲存新的自訂快捷任務
   const handleSaveNewQuickTask = (e) => {
     e.preventDefault();
     if(!quickTaskForm.name) return alert('請輸入快捷任務名稱！');
@@ -177,9 +186,8 @@ export default function App() {
     setQuickTaskForm({ name: '', iconName: 'leaf', taskType: '灌溉', field: '', crop: '', material: '', amount: '', note: '' });
   };
 
-  // 刪除自訂快捷任務
   const handleDeleteQuickTask = (id, e) => {
-    e.stopPropagation(); // 避免觸發執行任務
+    e.stopPropagation();
     if(window.confirm('確定要刪除這個自訂快捷任務嗎？')) {
       setQuickTasks(quickTasks.filter(t => t.id !== id));
     }
@@ -285,8 +293,6 @@ export default function App() {
 
         {activeTab === 'dashboard' ? (
           <div className="space-y-8 animate-fade-in-up">
-            
-            {/* 數據儀表板 */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 relative overflow-hidden group">
                 <div className="absolute -right-6 -top-6 bg-green-50 w-24 h-24 rounded-full group-hover:scale-150 transition-transform duration-500"></div>
@@ -311,7 +317,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* --- 💡 快捷任務模組區塊 --- */}
             <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 relative overflow-hidden">
               <div className="absolute top-0 left-0 w-1 h-full bg-yellow-400"></div>
               <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-gray-800">
@@ -341,14 +346,12 @@ export default function App() {
               </div>
             </div>
 
-            {/* 新增/編輯表單區塊 */}
             <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 relative overflow-hidden">
               <div className="absolute top-0 left-0 w-1 h-full bg-green-500"></div>
               <h3 className="text-xl font-bold mb-6 flex items-center gap-2 text-gray-800">
                 {editingId ? <><Edit2 className="text-blue-500" /> 編輯工作紀錄</> : <><Plus className="text-green-500" /> 新增自訂工作日誌</>}
               </h3>
               
-              {/* Datalists 提供智慧輸入建議 */}
               <datalist id="history-fields">{uniqueFields.map((v, i) => <option key={i} value={v} />)}</datalist>
               <datalist id="history-crops">{uniqueCrops.map((v, i) => <option key={i} value={v} />)}</datalist>
               <datalist id="history-materials">{uniqueMaterials.map((v, i) => <option key={i} value={v} />)}</datalist>
@@ -399,10 +402,37 @@ export default function App() {
           </div>
         ) : (
           <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden animate-fade-in-up">
-            <div className="bg-gray-900 p-5 flex justify-between items-center">
+            <div className="bg-gray-900 p-5 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
               <h2 className="font-bold text-white flex items-center gap-2"><History size={20}/> 數位生產履歷庫</h2>
-              <span className="text-gray-400 text-sm">共 {logs.length} 筆資料</span>
+              
+              {/* --- 💡 新增的搜尋與篩選工具列 --- */}
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                  <input 
+                    type="text" 
+                    placeholder="搜尋作物、田區或內容..." 
+                    className="pl-9 pr-4 py-2 bg-gray-800 text-white placeholder-gray-400 border border-gray-700 rounded-xl outline-none focus:ring-2 focus:ring-green-500 text-sm w-full sm:w-64 transition-all"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+                <div className="relative">
+                  <input 
+                    type="month" 
+                    className="px-4 py-2 bg-gray-800 text-white border border-gray-700 rounded-xl outline-none focus:ring-2 focus:ring-green-500 text-sm w-full sm:w-auto transition-all [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert"
+                    value={filterMonth}
+                    onChange={(e) => setFilterMonth(e.target.value)}
+                  />
+                  {filterMonth && (
+                    <button onClick={() => setFilterMonth('')} className="absolute right-8 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white">
+                      <X size={14}/>
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
+
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse min-w-[800px]">
                 <thead>
@@ -416,10 +446,11 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {logs.length === 0 ? (
-                    <tr><td colSpan="6" className="p-10 text-center text-gray-400">目前尚無履歷紀錄</td></tr>
+                  {/* 使用過濾後的資料庫 filteredLogs */}
+                  {filteredLogs.length === 0 ? (
+                    <tr><td colSpan="6" className="p-10 text-center text-gray-400">找不到符合條件的履歷紀錄</td></tr>
                   ) : (
-                    logs.map(log => {
+                    filteredLogs.map(log => {
                       const task = log.taskType || log.type || '';
                       const isAlert = task.includes('病蟲') || task.includes('異常');
                       const isHarvest = task.includes('收');
@@ -454,6 +485,9 @@ export default function App() {
                 </tbody>
               </table>
             </div>
+            <div className="bg-gray-50 p-4 border-t border-gray-100 text-right text-sm text-gray-500">
+              顯示 {filteredLogs.length} / 共 {logs.length} 筆資料
+            </div>
           </div>
         )}
       </main>
@@ -479,7 +513,6 @@ export default function App() {
         </div>
       )}
 
-      {/* --- 💡 新增自訂任務 Modal --- */}
       {showQuickTaskModal && (
         <div className="fixed inset-0 bg-gray-900/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm overflow-y-auto">
           <div className="bg-white rounded-3xl p-6 w-full max-w-xl shadow-2xl relative border border-gray-100 animate-fade-in-up my-8">
