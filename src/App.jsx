@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, updateDoc, setDoc, getDoc } from 'firebase/firestore';
-import { Tractor, Leaf, Droplets, Bug, Sprout, LogOut, Trash2, Edit2, Settings, Plus, X, Save, Thermometer, CloudRain, Activity, LayoutDashboard, History, ClipboardCheck } from 'lucide-react';
+import { Tractor, Leaf, Droplets, Bug, Sprout, LogOut, Trash2, Edit2, Settings, Plus, X, Save, Thermometer, CloudRain, Activity, LayoutDashboard, History, ClipboardCheck, Zap } from 'lucide-react';
 
 // --- 1. 請在此貼上你專屬的 Firebase Config ---
 const firebaseConfig = {
@@ -13,7 +13,6 @@ const firebaseConfig = {
   appId: "1:225983511918:web:1459cf6b669f781740157f",
   measurementId: "G-YZR8PZYWGN"
 };
-
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -29,8 +28,9 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   
   const [logs, setLogs] = useState([]);
-  // 表單狀態更新：加入 crop(作物), material(資材), 預設 taskType 為 '灌溉'
-  const [formData, setFormData] = useState({ 
+  
+  // 表單初始狀態獨立出來，方便重複使用
+  const initialFormState = { 
     date: new Date().toISOString().split('T')[0], 
     taskType: '灌溉', 
     field: '', 
@@ -38,11 +38,19 @@ export default function App() {
     material: '', 
     amount: '', 
     note: '' 
-  });
+  };
+  const [formData, setFormData] = useState(initialFormState);
   const [editingId, setEditingId] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [activeTab, setActiveTab] = useState('dashboard');
+
+  // --- 💡 新增：自訂快捷任務狀態 ---
+  const [quickTasks, setQuickTasks] = useState([
+    { id: 1, name: '🌞 溫室A棟早晨澆水', icon: <Droplets size={16}/>, data: { taskType: '灌溉', field: '溫室A棟', crop: '玉女小番茄', material: '自動滴灌系統', amount: '50L', note: '系統預設早晨澆水任務' } },
+    { id: 2, name: '🛡️ B區預防性病蟲害巡視', icon: <Bug size={16}/>, data: { taskType: '病蟲害防治', field: '金鑽鳳梨B區', crop: '金鑽鳳梨', material: '無 (日常巡視)', amount: '-', note: '例行性巡視，無異常發現' } },
+    { id: 3, name: '🧹 包裝場下班清潔', icon: <ClipboardCheck size={16}/>, data: { taskType: '場地清潔', field: '農場包裝場', crop: '-', material: '清水與掃具', amount: '-', note: '下班前場地清理與設備歸位' } }
+  ]);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -101,11 +109,23 @@ export default function App() {
       } else {
         await addDoc(collection(db, 'farm_logs'), formData);
       }
-      setFormData({ 
-        date: new Date().toISOString().split('T')[0], 
-        taskType: '灌溉', field: '', crop: '', material: '', amount: '', note: '' 
-      });
+      setFormData(initialFormState);
       setActiveTab('history');
+    } catch (err) { alert('操作失敗：' + err.message); }
+    setLoading(false);
+  };
+
+  // --- 💡 執行快捷任務功能 ---
+  const handleQuickTask = async (taskData) => {
+    if(!window.confirm(`確定要直接寫入「${taskData.name}」的紀錄嗎？`)) return;
+    setLoading(true);
+    try {
+      const logData = {
+        date: new Date().toISOString().split('T')[0], // 永遠帶入當天日期
+        ...taskData.data
+      };
+      await addDoc(collection(db, 'farm_logs'), logData);
+      alert('✅ 快捷任務已成功記錄至數位履歷！');
     } catch (err) { alert('操作失敗：' + err.message); }
     setLoading(false);
   };
@@ -113,7 +133,7 @@ export default function App() {
   const handleEdit = (log) => {
     setFormData({ 
       date: log.date, 
-      taskType: log.taskType || log.type || '灌溉', // 兼容舊資料
+      taskType: log.taskType || log.type || '灌溉', 
       field: log.field || log.area || '', 
       crop: log.crop || '',
       material: log.material || '',
@@ -130,10 +150,8 @@ export default function App() {
 
   const today = new Date().toISOString().split('T')[0];
   const todayCount = logs.filter(l => l.date === today).length;
-  // 檢查是否有包含「病蟲害」關鍵字
   const pestCount = logs.filter(l => (l.taskType || l.type || '').includes('病蟲害')).length;
 
-  // 動態萃取歷史紀錄 (Datalist 來源)
   const uniqueFields = Array.from(new Set(logs.map(l => l.field || l.area).filter(Boolean)));
   const uniqueCrops = Array.from(new Set(logs.map(l => l.crop).filter(Boolean)));
   const uniqueMaterials = Array.from(new Set(logs.map(l => l.material).filter(Boolean)));
@@ -212,6 +230,8 @@ export default function App() {
 
         {activeTab === 'dashboard' ? (
           <div className="space-y-8 animate-fade-in-up">
+            
+            {/* 數據儀表板 */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 relative overflow-hidden group">
                 <div className="absolute -right-6 -top-6 bg-green-50 w-24 h-24 rounded-full group-hover:scale-150 transition-transform duration-500"></div>
@@ -236,10 +256,33 @@ export default function App() {
               </div>
             </div>
 
+            {/* --- 💡 快捷任務模組區塊 --- */}
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-1 h-full bg-yellow-400"></div>
+              <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-gray-800">
+                <Zap className="text-yellow-500" size={20} /> 自訂例行快捷任務 <span className="text-sm font-normal text-gray-400 ml-2">(一鍵打卡，直接寫入履歷)</span>
+              </h3>
+              <div className="flex flex-wrap gap-3">
+                {quickTasks.map(task => (
+                  <button 
+                    key={task.id} 
+                    onClick={() => handleQuickTask(task)}
+                    className="flex items-center gap-2 px-4 py-3 bg-gray-50 hover:bg-green-50 border border-gray-200 hover:border-green-300 text-gray-700 hover:text-green-700 rounded-xl transition-all shadow-sm transform hover:-translate-y-1"
+                  >
+                    {task.icon} <span className="font-bold text-sm">{task.name}</span>
+                  </button>
+                ))}
+                <button className="flex items-center gap-2 px-4 py-3 bg-white border border-dashed border-gray-300 text-gray-400 hover:text-gray-600 rounded-xl transition-all">
+                  <Plus size={16} /> <span className="text-sm">新增自訂任務</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 新增/編輯表單區塊 */}
             <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 relative overflow-hidden">
               <div className="absolute top-0 left-0 w-1 h-full bg-green-500"></div>
               <h3 className="text-xl font-bold mb-6 flex items-center gap-2 text-gray-800">
-                {editingId ? <><Edit2 className="text-blue-500" /> 編輯工作紀錄</> : <><Plus className="text-green-500" /> 新增工作日誌</>}
+                {editingId ? <><Edit2 className="text-blue-500" /> 編輯工作紀錄</> : <><Plus className="text-green-500" /> 新增自訂工作日誌</>}
               </h3>
               
               {/* Datalists 提供智慧輸入建議 */}
@@ -248,7 +291,6 @@ export default function App() {
               <datalist id="history-materials">{uniqueMaterials.map((v, i) => <option key={i} value={v} />)}</datalist>
 
               <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-12 gap-5">
-                {/* 第一列：日期與作業類型 */}
                 <div className="md:col-span-4">
                   <label className="block text-sm font-medium text-gray-600 mb-2">作業日期</label>
                   <input type="date" required className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-green-500/50" value={formData.date} onChange={(e)=>setFormData({...formData, date: e.target.value})} />
@@ -256,33 +298,13 @@ export default function App() {
                 <div className="md:col-span-8">
                   <label className="block text-sm font-medium text-gray-600 mb-2">作業內容 (依有機規範)</label>
                   <select className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-green-500/50" value={formData.taskType} onChange={(e)=>setFormData({...formData, taskType: e.target.value})}>
-                    <optgroup label="栽培與水土管理">
-                      <option value="整地">整地</option>
-                      <option value="播種/定植">播種 / 定植 / 補植</option>
-                      <option value="中耕培土">中耕培土</option>
-                      <option value="灌溉">灌溉</option>
-                    </optgroup>
-                    <optgroup label="肥培與病蟲草害">
-                      <option value="施基肥">施基肥</option>
-                      <option value="施追肥">施追肥 / 液肥</option>
-                      <option value="病蟲害防治">病蟲害防治</option>
-                      <option value="雜草防除">雜草防除 (除草)</option>
-                    </optgroup>
-                    <optgroup label="植株管理與採收">
-                      <option value="整枝/修剪">整枝 / 蔓 / 修剪</option>
-                      <option value="疏花果/套袋">疏花果 / 套袋</option>
-                      <option value="採收">採收</option>
-                      <option value="採後處理">採後處理 (選別/分級)</option>
-                    </optgroup>
-                    <optgroup label="場地與設備維護">
-                      <option value="場地清潔">場地清潔 (包裝場/倉庫)</option>
-                      <option value="設備檢修">設備檢修 / 保養</option>
-                      <option value="其他">其他</option>
-                    </optgroup>
+                    <optgroup label="栽培與水土管理"><option value="整地">整地</option><option value="播種/定植">播種 / 定植 / 補植</option><option value="中耕培土">中耕培土</option><option value="灌溉">灌溉</option></optgroup>
+                    <optgroup label="肥培與病蟲草害"><option value="施基肥">施基肥</option><option value="施追肥">施追肥 / 液肥</option><option value="病蟲害防治">病蟲害防治</option><option value="雜草防除">雜草防除 (除草)</option></optgroup>
+                    <optgroup label="植株管理與採收"><option value="整枝/修剪">整枝 / 蔓 / 修剪</option><option value="疏花果/套袋">疏花果 / 套袋</option><option value="採收">採收</option><option value="採後處理">採後處理 (選別/分級)</option></optgroup>
+                    <optgroup label="場地與設備維護"><option value="場地清潔">場地清潔 (包裝場/倉庫)</option><option value="設備檢修">設備檢修 / 保養</option><option value="其他">其他</option></optgroup>
                   </select>
                 </div>
 
-                {/* 第二列：田區、作物、資材 */}
                 <div className="md:col-span-4">
                   <label className="block text-sm font-medium text-gray-600 mb-2">田區地段 / 設施編號</label>
                   <input type="text" required list="history-fields" autoComplete="on" placeholder="例：A區溫室" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-green-500/50" value={formData.field} onChange={(e)=>setFormData({...formData, field: e.target.value})} />
@@ -296,7 +318,6 @@ export default function App() {
                   <input type="text" list="history-materials" autoComplete="on" placeholder="例：自製液肥、割草機..." className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-green-500/50" value={formData.material} onChange={(e)=>setFormData({...formData, material: e.target.value})} />
                 </div>
 
-                {/* 第三列：數量與備註 */}
                 <div className="md:col-span-4">
                   <label className="block text-sm font-medium text-gray-600 mb-2">施用量 / 採收量</label>
                   <input type="text" placeholder="例：50公斤、200倍稀釋" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-green-500/50" value={formData.amount} onChange={(e)=>setFormData({...formData, amount: e.target.value})} />
